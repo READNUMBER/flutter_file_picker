@@ -17,48 +17,28 @@ import java.util.ArrayList;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.PluginRegistry;
 
-public class FilePickerDelegate implements PluginRegistry.ActivityResultListener, PluginRegistry.RequestPermissionsResultListener {
+public class FilePickerDelegate implements PluginRegistry.ActivityResultListener {
 
     private static final String TAG = "FilePickerDelegate";
     private static final int REQUEST_CODE = (FilePickerPlugin.class.hashCode() + 43) & 0x0000ffff;
 
     private final Activity activity;
-    private final PermissionManager permissionManager;
     private MethodChannel.Result pendingResult;
     private boolean isMultipleSelection = false;
     private String type;
 
     public FilePickerDelegate(final Activity activity) {
-        this(
-                activity,
-                null,
-                new PermissionManager() {
-                    @Override
-                    public boolean isPermissionGranted(final String permissionName) {
-                        return ActivityCompat.checkSelfPermission(activity, permissionName)
-                                == PackageManager.PERMISSION_GRANTED;
-                    }
-
-                    @Override
-                    public void askForPermission(final String permissionName, final int requestCode) {
-                        ActivityCompat.requestPermissions(activity, new String[]{permissionName}, requestCode);
-                    }
-
-                }
-        );
+        this(activity, null);
     }
 
     @VisibleForTesting
-    FilePickerDelegate(final Activity activity, final MethodChannel.Result result, final PermissionManager permissionManager) {
+    FilePickerDelegate(final Activity activity, final MethodChannel.Result result) {
         this.activity = activity;
         this.pendingResult = result;
-        this.permissionManager = permissionManager;
     }
-
 
     @Override
     public boolean onActivityResult(final int requestCode, final int resultCode, final Intent data) {
-
         if (requestCode == REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             new Thread(new Runnable() {
                 @Override
@@ -119,19 +99,6 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
         return false;
     }
 
-    @Override
-    public boolean onRequestPermissionsResult(final int requestCode, final String[] permissions, final int[] grantResults) {
-        final boolean permissionGranted =
-                grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
-
-        if (permissionGranted) {
-            this.startFileExplorer();
-        } else {
-            finishWithError("read_external_storage_denied", "User did not allowed reading external storage");
-        }
-
-        return true;
-    }
 
     private boolean setPendingMethodCallAndResult(final MethodChannel.Result result) {
         if (this.pendingResult != null) {
@@ -174,11 +141,6 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
         this.type = type;
         this.isMultipleSelection = isMultipleSelection;
 
-        if (!this.permissionManager.isPermissionGranted(Manifest.permission.READ_EXTERNAL_STORAGE)) {
-            this.permissionManager.askForPermission(Manifest.permission.READ_EXTERNAL_STORAGE, REQUEST_CODE);
-            return;
-        }
-
         this.startFileExplorer();
     }
 
@@ -198,15 +160,7 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
         this.clearPendingResult();
     }
 
-
     private void clearPendingResult() {
         this.pendingResult = null;
     }
-
-    interface PermissionManager {
-        boolean isPermissionGranted(String permissionName);
-
-        void askForPermission(String permissionName, int requestCode);
-    }
-
 }
